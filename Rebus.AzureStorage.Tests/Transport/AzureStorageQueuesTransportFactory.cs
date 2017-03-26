@@ -9,7 +9,7 @@ namespace Rebus.AzureStorage.Tests.Transport
 {
     public class AzureStorageQueuesTransportFactory : ITransportFactory
     {
-        readonly ConcurrentDictionary<string, AzureStorageQueuesTransport> _transports = new ConcurrentDictionary<string, AzureStorageQueuesTransport>(StringComparer.InvariantCultureIgnoreCase);
+        readonly ConcurrentDictionary<string, AzureStorageQueuesTransport> _transports = new ConcurrentDictionary<string, AzureStorageQueuesTransport>(StringComparer.CurrentCultureIgnoreCase);
 
         public ITransport CreateOneWayClient()
         {
@@ -31,7 +31,7 @@ namespace Rebus.AzureStorage.Tests.Transport
             {
                 var transport = new AzureStorageQueuesTransport(AzureConfig.StorageAccount, inputQueueAddress, new ConsoleLoggerFactory(false));
 
-                transport.PurgeInputQueue();
+                transport.PurgeInputQueue().Wait(2000);
 
                 transport.Initialize();
 

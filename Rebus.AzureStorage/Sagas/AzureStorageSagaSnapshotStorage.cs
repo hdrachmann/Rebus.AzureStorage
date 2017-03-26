@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
 using Newtonsoft.Json;
 using Rebus.Auditing.Sagas;
+using Rebus.AzureStorage.Transport;
 using Rebus.Logging;
 using Rebus.Sagas;
 
@@ -64,56 +67,71 @@ namespace Rebus.AzureStorage.Sagas
         /// </summary>
         public IEnumerable<IListBlobItem> ListAllBlobs()
         {
-            return _container.ListBlobs(useFlatBlobListing: true);
+
+            BlobContinuationToken token = null;
+            do
+            {
+                var task = _container.ListBlobsSegmentedAsync(null, true, BlobListingDetails.Metadata, null, token,
+                    new BlobRequestOptions(), null);
+                AsyncHelpers.RunSync(() => task);
+                var segment = task.Result;
+                token = segment.ContinuationToken;
+                foreach (var segmentResult in segment.Results)
+                {
+                    yield return segmentResult;
+                }
+            } while (token != null);
+
         }
 
         /// <summary>
         /// Creates the blob container if it doesn't exist
         /// </summary>
-        public void EnsureContainerExists()
+        public async Task EnsureContainerExists()
         {
-            if (!_container.Exists())
+            var exists = await _container.ExistsAsync();
+            if (!exists)
             {
                 _log.Info("Container {0} did not exist - it will be created now", _container.Name);
-                _container.CreateIfNotExists();
+                await _container.CreateIfNotExistsAsync();
             }
         }
 
-        static string GetBlobData(CloudBlockBlob cloudBlockBlob)
+        static Task<string> GetBlobData(CloudBlockBlob cloudBlockBlob)
         {
-            return cloudBlockBlob.DownloadText(TextEncoding, new AccessCondition(),
+            return cloudBlockBlob.DownloadTextAsync(TextEncoding, new AccessCondition(),
                 new BlobRequestOptions { RetryPolicy = new ExponentialRetry() }, new OperationContext());
         }
 
         /// <summary>
         /// Loads the saga data with the given id and revision
         /// </summary>
-        public ISagaData GetSagaData(Guid sagaDataId, int revision)
+        public async Task<ISagaData> GetSagaData(Guid sagaDataId, int revision)
         {
             var dataRef = $"{sagaDataId:N}/{revision:0000000000}/data.json";
             var dataBlob = _container.GetBlockBlobReference(dataRef);
-            var json = GetBlobData(dataBlob);
+            var json = await GetBlobData(dataBlob);
             return (ISagaData)JsonConvert.DeserializeObject(json, DataSettings);
         }
 
         /// <summary>
         /// Loads the saga metadata for the saga with the given id and revision
         /// </summary>
-        public Dictionary<string, string> GetSagaMetaData(Guid sagaDataId, int revision)
+        public async Task<Dictionary<string, string>> GetSagaMetaData(Guid sagaDataId, int revision)
         {
             var metaDataRef = $"{sagaDataId:N}/{revision:0000000000}/metadata.json";
             var metaDataBlob = _container.GetBlockBlobReference(metaDataRef);
-            var json = GetBlobData(metaDataBlob);
+            var json = await GetBlobData(metaDataBlob);
             return JsonConvert.DeserializeObject<Dictionary<string, string>>(json, MetadataSettings);
         }
 
         /// <summary>
         /// Drops/recreates the snapshot container
         /// </summary>
-        public void DropAndRecreateContainer()
+        public async Task DropAndRecreateContainer()
         {
-            _container.DeleteIfExists();
-            _container.CreateIfNotExists();
+            await _container.DeleteIfExistsAsync();
+            await _container.CreateIfNotExistsAsync();
         }
     }
 }

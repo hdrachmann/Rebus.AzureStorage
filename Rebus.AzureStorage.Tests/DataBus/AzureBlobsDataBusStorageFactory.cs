@@ -23,7 +23,7 @@ namespace Rebus.AzureStorage.Tests.DataBus
 
             AzureConfig.StorageAccount.CreateCloudBlobClient()
                 .GetContainerReference(_containerName)
-                .DeleteIfExists();
+                .DeleteIfExistsAsync().Wait(2000);
         }
     }
 }

@@ -17,13 +17,13 @@ namespace Rebus.AzureStorage.Config
         /// for subscriptions, and a combined table storage- and blob-based saga storage.
         /// Optionally enables the data bus (using blob storage) and saga snapshots (using blob storage too)
         /// </summary>
-        public static RebusConfigurer UseAzure(this RebusConfigurer configurer, string storageAccountConnectionStringOrName, string inputQueueAddress)
+        public static RebusConfigurer UseAzure(this RebusConfigurer configurer, string storageAccountConnectionString, string inputQueueAddress)
         {
             if (configurer == null) throw new ArgumentNullException(nameof(configurer));
-            if (storageAccountConnectionStringOrName == null) throw new ArgumentNullException(nameof(storageAccountConnectionStringOrName));
+            if (storageAccountConnectionString == null) throw new ArgumentNullException(nameof(storageAccountConnectionString));
             if (inputQueueAddress == null) throw new ArgumentNullException(nameof(inputQueueAddress));
 
-            var storageAccount = AzureConfigurationHelper.GetStorageAccount(storageAccountConnectionStringOrName);
+            var storageAccount = CloudStorageAccount.Parse(storageAccountConnectionString);//AzureConfigurationHelper.GetStorageAccount(storageAccountConnectionString);
 
             return Configure(configurer, storageAccount, inputQueueAddress);
         }

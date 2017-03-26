@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Blob.Protocol;
 using Microsoft.WindowsAzure.Storage.Table;
 using Rebus.AzureStorage.Sagas;
 using Rebus.Logging;
@@ -48,18 +50,37 @@ namespace Rebus.AzureStorage.Tests.Sagas
 
         static async Task ClearTables(CloudTableClient tableClient)
         {
-            await Task.WhenAll(
-                tableClient.ListTables()
-                    .Select(async table => await ClearTable(tableClient, table.Name))
-            );
+
+            TableContinuationToken token = null;
+            do
+            {
+                var segement = await tableClient.ListTablesSegmentedAsync(token);
+
+                token = segement.ContinuationToken;
+                await Task.WhenAll(
+                        segement.Results
+                            .Select(async table => await ClearTable(tableClient, table.Name))
+                    )
+                    ;
+            } while (token != null);
         }
 
         static async Task ClearBlobs(CloudBlobClient blobClient)
         {
-            await Task.WhenAll(
-                blobClient.ListContainers()
+            BlobContinuationToken token = null;
+            do
+            {
+                var segment = await blobClient.ListContainersSegmentedAsync(token);
+                token = segment.ContinuationToken;
+
+                await Task.WhenAll(segment.Results
                     .Select(async container => await ClearContainer(blobClient, container.Name))
-            );
+                );
+
+            } while (token != null);
+
+
+
         }
 
         static async Task ClearContainer(CloudBlobClient blobClient, string containerName)
@@ -71,7 +92,7 @@ namespace Rebus.AzureStorage.Tests.Sagas
             Console.WriteLine($"Clearing container '{containerReference.Name}'");
 
             await Task.WhenAll(
-                containerReference.ListBlobs()
+                ListBlobsResponse(containerReference)
                     .OfType<CloudBlockBlob>()
                     .Select(async blob =>
                     {
@@ -81,6 +102,25 @@ namespace Rebus.AzureStorage.Tests.Sagas
                         await cloudBlob.DeleteIfExistsAsync();
                     })
             );
+        }
+
+        static IEnumerable<IListBlobItem> ListBlobsResponse(CloudBlobContainer container)
+        {
+            BlobContinuationToken token = null;
+
+            do
+            {
+                var segment = container.ListBlobsSegmentedAsync(token).Result;
+
+                token = segment.ContinuationToken;
+
+                foreach (var segmentResult in segment.Results)
+                {
+                    yield return segmentResult;
+                }
+            }
+            while (token != null);
+
         }
 
         static async Task ClearTable(CloudTableClient client, string tableName)

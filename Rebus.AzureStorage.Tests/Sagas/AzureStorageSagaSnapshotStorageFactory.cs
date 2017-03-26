@@ -20,8 +20,8 @@ namespace Rebus.AzureStorage.Tests.Sagas
 
         public ISagaSnapshotStorage Create()
         {
-            _storage.DropAndRecreateContainer();
-            _storage.EnsureContainerExists();
+            _storage.DropAndRecreateContainer().Wait(2000);
+            _storage.EnsureContainerExists().Wait(2000);
             return _storage;
         }
 
@@ -48,8 +48,8 @@ namespace Rebus.AzureStorage.Tests.Sagas
                 .GroupBy(b => new { b.Id, b.Revision })
                 .Select(g => new SagaDataSnapshot
                 {
-                    SagaData = _storage.GetSagaData(g.Key.Id, g.Key.Revision),
-                    Metadata = _storage.GetSagaMetaData(g.Key.Id, g.Key.Revision)
+                    SagaData = _storage.GetSagaData(g.Key.Id, g.Key.Revision).Result,
+                    Metadata = _storage.GetSagaMetaData(g.Key.Id, g.Key.Revision).Result
                 })
                 .ToList();
 

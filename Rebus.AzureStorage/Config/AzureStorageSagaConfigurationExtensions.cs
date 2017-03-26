@@ -17,11 +17,11 @@ namespace Rebus.AzureStorage.Config
         /// Configures Rebus to use a combination of blob and table storage to store sagas
         /// </summary>
         public static void StoreInAzureStorage(this StandardConfigurer<ISagaStorage> configurer,
-            string storageAccountConnectionStringOrName,
+            string storageAccountConnectionString,
             string tableName = "RebusSagaIndex",
             string containerName = "RebusSagaStorage")
         {
-            var storageAccount = AzureConfigurationHelper.GetStorageAccount(storageAccountConnectionStringOrName);
+            var storageAccount = CloudStorageAccount.Parse(storageAccountConnectionString);//AzureConfigurationHelper.GetStorageAccount(storageAccountConnectionStringOrName);
 
             StoreInAzureStorage(configurer, storageAccount, tableName, containerName);
         }

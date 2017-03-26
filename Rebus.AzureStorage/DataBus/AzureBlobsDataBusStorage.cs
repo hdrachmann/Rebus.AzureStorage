@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
@@ -94,7 +95,8 @@ namespace Rebus.AzureStorage.DataBus
 
                 await UpdateLastReadTime(blob);
 
-                return blob.OpenRead();
+                var stream = await blob.OpenReadAsync(AccessCondition.GenerateEmptyCondition(), new BlobRequestOptions(), null);
+                return stream;
             }
             catch (StorageException exception) when (exception.IsStatus(HttpStatusCode.NotFound))
             {

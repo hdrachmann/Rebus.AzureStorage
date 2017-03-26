@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
@@ -33,7 +34,7 @@ namespace Rebus.AzureStorage.Subscriptions
             _loggerFactory.GetLogger<AzureStorageSubscriptionStorage>().Info("Auto creating table {0}", _tableName);
             var client = _cloudStorageAccount.CreateCloudTableClient();
             var t = client.GetTableReference(_tableName);
-            t.CreateIfNotExists();
+            t.CreateIfNotExistsAsync().Wait(2000);
         }
 
         CloudTable GetTable()
@@ -104,7 +105,8 @@ namespace Rebus.AzureStorage.Subscriptions
         {
             var client = _cloudStorageAccount.CreateCloudTableClient();
             var t = client.GetTableReference(_tableName);
-            t.DeleteIfExists();
+            t.DeleteIfExistsAsync().Wait(2000);
+
         }
     }
 }

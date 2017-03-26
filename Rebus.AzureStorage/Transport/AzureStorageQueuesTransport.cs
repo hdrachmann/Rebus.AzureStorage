@@ -55,7 +55,13 @@ namespace Rebus.AzureStorage.Transport
         {
             var queue = GetQueue(address);
 
-            queue.CreateIfNotExists();
+            var task = queue.CreateIfNotExistsAsync();
+            AsyncHelpers.RunSync(() => task);
+
+            if (task.IsFaulted)
+            {
+                throw new Exception($"Error in creating queue:{address} Message: {task.Exception?.Message}");
+            }
         }
 
         /// <summary>
@@ -75,7 +81,7 @@ namespace Rebus.AzureStorage.Transport
 
                 try
                 {
-                    var options = new QueueRequestOptions {RetryPolicy = new ExponentialRetry()};
+                    var options = new QueueRequestOptions { RetryPolicy = new ExponentialRetry() };
                     var operationContext = new OperationContext();
 
                     await queue.AddMessageAsync(cloudQueueMessage, timeToBeReceivedOrNull, queueVisibilityDelayOrNull, options, operationContext);
@@ -111,7 +117,7 @@ namespace Rebus.AzureStorage.Transport
 
             context.OnAborted(() =>
             {
-                inputQueue.UpdateMessage(cloudQueueMessage, TimeSpan.FromSeconds(0), MessageUpdateFields.Visibility);
+                Task.Run(() => inputQueue.UpdateMessageAsync(cloudQueueMessage, TimeSpan.FromSeconds(0), MessageUpdateFields.Visibility), cancellationToken).Wait(cancellationToken);
             });
 
             return Deserialize(cloudQueueMessage);
@@ -125,7 +131,7 @@ namespace Rebus.AzureStorage.Transport
             {
                 return null;
             }
-            
+
             TimeSpan? timeToBeReceived = TimeSpan.Parse(timeToBeReceivedStr);
             return timeToBeReceived;
         }
@@ -197,11 +203,12 @@ namespace Rebus.AzureStorage.Transport
         /// Purges the input queue (WARNING: potentially very slow operation, as it will continue to batch receive messages until the queue is empty
         /// </summary>
         /// <exception cref="RebusApplicationException"></exception>
-        public void PurgeInputQueue()
+        public async Task PurgeInputQueue()
         {
             var queue = GetQueue(_inputQueueName);
 
-            if (!queue.Exists()) return;
+            var queuExists = await queue.ExistsAsync();
+            if (!queuExists) return;
 
             _log.Info("Purging storage queue '{0}' (purging by deleting all messages)", _inputQueueName);
 
@@ -209,14 +216,12 @@ namespace Rebus.AzureStorage.Transport
             {
                 while (true)
                 {
-                    var messages = queue.GetMessages(10).ToList();
+
+                    var messages = (await queue.GetMessagesAsync(10)).ToList();
 
                     if (!messages.Any()) break;
 
-                    Task.WaitAll(messages.Select(async message =>
-                    {
-                        await queue.DeleteMessageAsync(message);
-                    }).ToArray());
+                    await Task.WhenAll(messages.Select(message => queue.DeleteMessageAsync(message)).ToArray());
 
                     _log.Debug("Deleted {0} messages from '{1}'", messages.Count, _inputQueueName);
                 }

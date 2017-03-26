@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using Rebus.AzureStorage.Subscriptions;
 using Rebus.AzureStorage.Tests.Transport;
 using Rebus.Logging;

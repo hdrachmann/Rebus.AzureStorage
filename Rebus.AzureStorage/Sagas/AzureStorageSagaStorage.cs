@@ -8,6 +8,7 @@ using Microsoft.WindowsAzure.Storage.Blob;
 using Microsoft.WindowsAzure.Storage.RetryPolicies;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
+using Rebus.AzureStorage.Transport;
 using Rebus.Bus;
 using Rebus.Exceptions;
 using Rebus.Logging;
@@ -60,12 +61,15 @@ namespace Rebus.AzureStorage.Sagas
         {
             try
             {
-                if (_containerReference.CreateIfNotExists())
+                var containerCreatedTask = _containerReference.CreateIfNotExistsAsync();
+                AsyncHelpers.RunSync(() => containerCreatedTask);
+                if (containerCreatedTask.Result)
                 {
                     _log.Info("Container '{0}' was automatically created", _containerReference.Name);
                 }
-
-                if (_tableReference.CreateIfNotExists())
+                var tableCreatedTasks = _tableReference.CreateIfNotExistsAsync();
+                AsyncHelpers.RunSync(() => tableCreatedTasks);
+                if (tableCreatedTasks.Result)
                 {
                     _log.Info("Table '{0}' was automatically created", _tableReference.Name);
                 }
@@ -81,7 +85,7 @@ namespace Rebus.AzureStorage.Sagas
         /// </summary>
         public async Task<ISagaData> Find(Type sagaDataType, string propertyName, object propertyValue)
         {
-            if (propertyName.Equals(IdPropertyName, StringComparison.InvariantCultureIgnoreCase))
+            if (propertyName.Equals(IdPropertyName, StringComparison.CurrentCultureIgnoreCase))
             {
                 var sagaId = propertyValue is string
                     ? (string)propertyValue
@@ -162,7 +166,7 @@ namespace Rebus.AzureStorage.Sagas
                 await dataBlob.FetchAttributesAsync();
                 if (dataBlob.Metadata[RevisionKey] != revisionToUpdate.ToString())
                 {
-                    throw new ConcurrencyException("Update of saga with ID {0} did not succeed because someone else beat us to it", sagaData.Id);
+                    throw new ConcurrencyException($"Update of saga with ID {sagaData.Id} did not succeed because someone else beat us to it");
                 }
                 sagaData.Revision++;
                 await ClearSagaIndex(sagaData, _tableReference);
@@ -205,7 +209,7 @@ namespace Rebus.AzureStorage.Sagas
             await dataBlob.FetchAttributesAsync();
             if (dataBlob.Metadata[RevisionKey] != sagaData.Revision.ToString())
             {
-                throw new ConcurrencyException("Update of saga with ID {0} did not succeed because someone else beat us to it", sagaData.Id);
+                throw new ConcurrencyException($"Update of saga with ID { sagaData.Id} did not succeed because someone else beat us to it");
             }
             sagaData.Revision++;
             await ClearSagaIndex(sagaData, _tableReference);
@@ -235,8 +239,7 @@ namespace Rebus.AzureStorage.Sagas
             }
             catch (Exception exception)
             {
-                throw new ApplicationException(
-                    $"An error occurred while attempting to deserialize '{data}' into a {sagaDataType}", exception);
+                throw new RebusApplicationException(exception, $"An error occurred while attempting to deserialize '{data}' into a {sagaDataType}");
             }
         }
 
